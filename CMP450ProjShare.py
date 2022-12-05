@@ -1,6 +1,7 @@
 import random
 import time
 import heapq
+import math
 class Controller:
     def __init__(self, currentDistance = 0, calculatedDistance = 0):
         self.currentDistance = currentDistance
@@ -34,15 +35,9 @@ class Controller:
             self.g.exits.append(exit)
             cell = self.g.cells[y][x]
             cell.setExit(exit)
-        for i in range(rows):
-            for j in range(cols):
-                print(self.g.cells[i][j])
-            print()
-        print("\n")
 
     def runSimulation(self):
         #assignTimerCycle (already done in the initializer)
-        self.g.printGrid()
         robotList = self.g.getRobotList()
         exitList = self.g.getExitList()
         for r in robotList:
@@ -50,53 +45,59 @@ class Controller:
             r.setShortDistance(price)
             r.setPath(path)
             r.setTargetExit(cell.getExit().getPoint())
-            print(f"robot info: {r}")
-            print("Robot path: ")
-            for i in r.getPath():
-                print(i.getPoint(), end =", ")
-            print()
-        #WILL BE FIXED LATER (DSA)
-        # for r in robotList:
-        #     currentDistance = None
-        #     beste = None
-        #     for e in exitList:
-        #         price, cell, path = self.calculateDistance(r,e)
-        #         shortDist = r.getShortDistance()
-        #         if price < currentDistance:
-        #             currentDistance = price
-        #             beste = e
-        #     if price == (3/2)*(shortDist):
-        #         p = beste.getPoint()
-        #         r.setTargetExit(p)
-        #         r.setShortDistance(currentDistance)
-        #         r.setPath(path)
-        #     print(f"robot info: {r}")
-        #     print("Robot path: ")
+            
+        for r in robotList:
+            currentDistance = math.inf
+            beste = None
+            for e in exitList:
+                price, cell, path = self.calculateDistance(r,e)
+                shortDist = r.getShortDistance()
+                if price < currentDistance:
+                    currentDistance = price
+                    beste = e
+            if price >= (3/2)*(shortDist):
+                p = beste.getPoint()
+                r.setTargetExit(p)
+                r.setShortDistance(currentDistance)
+                r.setPath(path)
+            # check if you can move twice
+            #        x  y    x  y
+            # ex -> (1, 0), (2, 0), (3, 0) ok (right, right)
+            # ex2 -> (0,0)  (1,0), (1,1) not ok (right, up)
+            # make sure you navigate through the line segment in the speed of two
+            # check if no collision occurs in speed of two
+            # if there are collisions
+            # try speed of 1
+            # if there are collisions
+            # try stopping
+            # check if no collision
         while len(robotList) != 0:
             #simulate cycle
-            print(len(robotList))
             print(f"at cycle {self.timecycle}: ")
             self.g.printGrid()
-            for r in robotList:
-                #set direction 
-                #set speed
-                #check collision
+            for r in robotList.copy():
+                print(f"Iterating over Robot #{r.getId()}")
+                r.determineSpeed()
+                r.determineDirection()
                 path = r.getPath()
                 #check if path is empty (we reached the exit)
                 if not path:
+                    print(f"Robot {r.getId()} has reached exit!!!")
                     rPos = r.getPoint()
                     self.g.cells[rPos[0]][rPos[1]].setRobot(None)
-                    robotList.remove(r)
-                #check if no collision
-                elif path[0].getRobot() == None:
+                    print(f"Deleting Robot #{r.getId()}")
+                    rCopy = r
+                    robotList.remove(rCopy)
+                elif path[r.getSpeed()-1].getRobot() is None:
                     rPos = r.getPoint()
                     self.g.cells[rPos[0]][rPos[1]].setRobot(None)
                     r.move()
+                    print(f"Robot {r.getId()} has moved!")
                     rPos = r.getPoint()
                     self.g.cells[rPos[0]][rPos[1]].setRobot(r)
                     r.popPath() 
             self.incrementTimer()
-            time.sleep(3)
+            time.sleep(2)
         self.g.printGrid()
                 
     def getShortestPath(self, robot):
@@ -105,13 +106,13 @@ class Controller:
             robotPoint = robot.getPoint()
             robotY, robotX = robotPoint[0],robotPoint[1]
             queue = []#add initial states
-            if robotY+1 < self.g.cols:
+            if robotY+1 < self.g.rows:
                 queue.append((self.g.cells[robotY+1][robotX].getCost(), self.g.cells[robotY+1][robotX], []))
             if robotY-1 >= 0:
                 queue.append((self.g.cells[robotY-1][robotX].getCost(), self.g.cells[robotY-1][robotX], []))
             if robotX-1 >= 0:
                 queue.append((self.g.cells[robotY][robotX-1].getCost(), self.g.cells[robotY][robotX-1], []))
-            if robotX+1 < self.g.rows:
+            if robotX+1 < self.g.cols:
                 queue.append((self.g.cells[robotY][robotX+1].getCost(), self.g.cells[robotY][robotX+1], [])) 
             visited = []
             while queue:
@@ -140,34 +141,34 @@ class Controller:
         def dsa(robot):
             robotPoint = robot.getPoint()
             robotY, robotX = robotPoint[0],robotPoint[1]
-            queue = heapq.heapify([])#add initial states
-            if robotY+1 < self.g.cols:
-                heapq.heappush(queue, [self.g.cells[robotY+1][robotX].getCost(), self.g.cells[robotY+1][robotX], []])
+            queue = []#add initial states
+            if robotY+1 < self.g.rows:
+                heapq.heappush(queue, (self.g.cells[robotY+1][robotX].getCost(), self.g.cells[robotY+1][robotX], []))
             if robotY-1 >= 0:
-                heapq.heappush(queue, [self.g.cells[robotY-1][robotX].getCost(), self.g.cells[robotY-1][robotX], []])
+                heapq.heappush(queue, (self.g.cells[robotY-1][robotX].getCost(), self.g.cells[robotY-1][robotX], []))
             if robotX-1 >= 0:
-                heapq.heappush(queue, [self.g.cells[robotY][robotX-1].getCost(), self.g.cells[robotY][robotX-1], []])
-            if robotX+1 < self.g.rows:
-                heapq.heappush(queue, [self.g.cells[robotY][robotX+1].getCost(), self.g.cells[robotY][robotX+1], []]) 
+                heapq.heappush(queue, (self.g.cells[robotY][robotX-1].getCost(), self.g.cells[robotY][robotX-1], []))
+            if robotX+1 < self.g.cols:
+                heapq.heappush(queue, (self.g.cells[robotY][robotX+1].getCost(), self.g.cells[robotY][robotX+1], [])) 
             visited = []
             while queue:
-                cost, u, path = queue.pop(0) 
+                cost, u, path = heapq.heappop(queue)
                 if u.getExit() != None:
-                    return cost,u,path
+                    return (cost+u.getCost() ,u,path+[u])
                 row, col = u.getPoint()
                 lst = []
                 if row+1 < self.g.rows:
-                    lst.append([self.g.cells[row+1][col].getCost(), self.g.cells[row+1][col], path+[u]])
+                    lst.append((self.g.cells[row+1][col].getCost(), self.g.cells[row+1][col], path+[u]))
                 if row-1 >= 0:
-                    lst.append([self.g.cells[row-1][col].getCost(), self.g.cells[row-1][col], path+[u]])
+                    lst.append((self.g.cells[row-1][col].getCost(), self.g.cells[row-1][col], path+[u]))
                 if col-1 >= 0:
-                    lst.append([self.g.cells[row][col-1].getCost(), self.g.cells[row][col-1], path+[u]])
+                    lst.append((self.g.cells[row][col-1].getCost(), self.g.cells[row][col-1], path+[u]))
                 if col+1 < self.g.cols:
-                    lst.append([self.g.cells[row][col+1].getCost(), self.g.cells[row][col+1], path+[u]])  
+                    lst.append((self.g.cells[row][col+1].getCost(), self.g.cells[row][col+1], path+[u]))  
                 for neighbor in lst:
                     if neighbor not in visited:
                         visited.append(neighbor)
-                        heapq.heappush(queue, [cost+neighbor[0], neighbor[1], path + [u]])
+                        heapq.heappush(queue, (cost+neighbor[0], neighbor[1], path + [u]))
         price, cell, path = dsa(robot)
         return (price, cell, path) 
             
@@ -215,7 +216,7 @@ class Grid:
             print("|",end="")
             for j in range(self.cols):
                 if self.cells[i][j].getRobot() is not None:
-                    print(" R ", end = "|")
+                    print(f" R{self.cells[i][j].getRobot().getId()}", end = "|")
                 elif self.cells[i][j].getExit() is not None: 
                     print(" E ", end = "|")
                 else:
@@ -224,6 +225,7 @@ class Grid:
         print("-" + "--"*(2*self.cols-1) + "--")
 
 class Robot:
+    globalid = 1
     direction = ['l','r','u','d']
     def __init__(self, point: tuple = (), shortDistance = 0, path = None):
         self.speed  = random.randint(1,2)
@@ -232,32 +234,51 @@ class Robot:
         self.targetExit = None #point
         self.shortDistance = shortDistance
         self.path = path
+        self.id = Robot.globalid
+        Robot.globalid+=1
     
     def setTargetExit(self, point):
         self.targetExit = point
         pass
 
-    def setSpeed(self, n):
-        self.speed = n
+    def getId(self):
+        return self.id
+    def determineSpeed(self):
+        if len(self.path) >= 2:
+            if self.path[1].getRobot() is None: 
+                cell = self.path[1]
+                movement = tuple(map(lambda x,y: x-y,cell.getPoint(),self.currentPos))
+                if (movement[0] > 0 and movement[1] == 0) or (movement[0] == 0 and movement[1] > 0) or (movement[0] < 0 and movement[1] == 0) or (movement[0] == 0 and movement[1] < 0):
+                    self.speed = 2
+                else:
+                    self.speed = 1
+        else:
+            self.speed = 1
 
-    def setDirection(self, dir):
-        self.direction = dir
+    def determineDirection(self):
+        if not self.path:
+            pass
+        else:
+            cell = self.path[self.speed-1]
+            movement = tuple(map(lambda x,y: x-y,cell.getPoint(),self.currentPos))
+            if movement[0] == 0 and movement[1] > 0: 
+                self.direction = 'r'
+            elif movement[0] == 0 and movement[1] < 0:
+                self.direction ='l'
+            elif movement[0] < 0 and movement[1] == 0:
+                self.direction = 'u'
+            elif movement[0] > 0 and movement[1] == 0:
+                self.direction = 'd'
     
-    def setPosition(self,pos):
-        self.currentPos = pos
-
     def popPath(self):
-        self.path.pop(0)
+        del self.path[0:self.speed]
 
     def move(self):
-        cell = self.path[0]
-        #get difference between robot and next cell distance
-        movement = tuple(map(lambda x,y: x-y,cell.getPoint(),self.currentPos))
-        print(movement)
-        #change position of robot
-        self.currentPos = tuple(map(lambda x,y: x+y, movement,self.currentPos))
+            cell = self.path[self.speed-1]
+            if cell.getRobot() is None:
+                movement = tuple(map(lambda x,y: x-y,cell.getPoint(),self.currentPos))
+                self.currentPos = tuple(map(lambda x,y: x+y, movement,self.currentPos))
 
-    
     def getShortDistance(self):
         return self.shortDistance
         
@@ -272,6 +293,9 @@ class Robot:
     
     def getPath(self):
         return self.path
+
+    def getSpeed(self):
+        return self.speed
     def __str__(self):
         return f"currentPos: {self.currentPos} path : {self.path} with cost of {self.shortDistance}"
 
@@ -303,6 +327,9 @@ class Cell:
         return self.point
     def __str__(self):
         return f"cost = {self.cost}, robot = {self.rb}, exit = {self.exit}, point = {self.point}"
+
+    def __lt__(self, other):
+        return self.cost < other.cost
 
 
 a = Controller()
